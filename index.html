@@ -32,6 +32,11 @@
           alert("camera permission denied");
         });
     }
+
+    function updateImage(video) {
+      const context = CANVAS.getContext("2d");
+      context.drawImage(video, 0, 0, SIZE, SIZE);
+    }
   </script>
 </head>
 <body onload="main()">
