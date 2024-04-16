@@ -12,8 +12,9 @@
     var SIZE = 300;
     var INTERVAL = 42;
     var THRESHOLD = 110;
+    var DIMENSIONS = 2;
 
-    var OBJECT_PROP = null;
+    var OBJECT_PROP = [];
     var OBSERVATIONS = [];
     var OBS_COUNT = 0;
 
@@ -75,14 +76,59 @@
       isolateObject(matrix);
       const box = getBoundingBox(matrix);
       const boxProp = getBoxProperty(box);
+      const blackPixels = countBlackPixels(matrix);
+      const boxArea = boxProp.width * boxProp.length;
+      const fullness = blackPixels / boxArea;
 
-      OBJECT_PROP = boxProp.aspectRatio;
-      document.getElementById(
-        "output"
-      ).innerHTML = `Aspect ratio: ${OBJECT_PROP.toFixed(2)}`;
+      OBJECT_PROP[1] = boxProp.aspectRatio;
+      OBJECT_PROP[2] = fullness;
+      recognize(OBJECT_PROP);
 
       updateCanvas(matrix);
       drawBox(box);
+    }
+
+    function countBlackPixels(matrix) {
+      let count = 0;
+      for (let i = 1; i <= SIZE; i++) {
+        for (let j = 1; j <= SIZE; j++) {
+          if (matrix[i][j] === 0) {
+            count++;
+          }
+        }
+      }
+
+      return count;
+    }
+
+    function recognize(currentProp) {
+      const name = OBS_COUNT === 0 ? "?" : getNearestNeighbor(currentProp).name;
+
+      document.getElementById("output").innerHTML = name;
+    }
+
+    function getNearestNeighbor(currentProp) {
+      let minDist = Number.MAX_VALUE;
+      let nearest = null;
+
+      for (let i = 1; i <= OBS_COUNT; i++) {
+        const dist = distance(currentProp, OBSERVATIONS[i].prop);
+        if (dist < minDist) {
+          minDist = dist;
+          nearest = OBSERVATIONS[i];
+        }
+      }
+
+      return nearest;
+    }
+
+    function distance(p1, p2) {
+      let sqDist = 0;
+      for (let i = 1; i <= DIMENSIONS; i++) {
+        sqDist += (p1[i] - p2[i]) ** 2;
+      }
+
+      return Math.sqrt(sqDist);
     }
 
     function isolateObject(matrix) {
