@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<head>
+  <title>Object detection</title>
+  <style>
+    canvas {
+      border: 2px solid;
+    }
+  </style>
+  <script>
+    var SIZE = 300;
+    var CANVAS = null;
+    var INTERVAL = 42;
+
+    function main() {
+      CANVAS = document.getElementById("camera");
+      CANVAS.width = SIZE;
+      CANVAS.height = SIZE;
+
+      const constraints = {
+        video: true,
+      };
+      const permission = navigator.mediaDevices
+        .getUserMedia(constraints)
+        .then((stream) => {
+          const video = document.createElement("video");
+          video.srcObject = stream;
+          video.play();
+          setInterval(updateImage, INTERVAL, video);
+        })
+        .catch((error) => {
+          console.error(error);
+          alert("camera permission denied");
+        });
+    }
+  </script>
+</head>
+<body onload="main()">
+  <main>
+    <canvas id="camera"></canvas>
+    <div id="output">?</div>
+    <br />
+    <input id="objectName" placeholder="what's this?" />
+    <button class="button">Learn</button>
+  </main>
+</body>
