@@ -8,24 +8,26 @@
   </style>
   <script>
     var canvas = null;
+    var ctx = null;
 
     var SIZE = 300;
     var INTERVAL = 42;
     var THRESHOLD = 110;
-    var DIMENSIONS = 2;
+    var DIMENSION = 2;
 
-    var OBJECT_PROP = [];
+    var OBJECT_PROPS = [];
     var OBSERVATIONS = [];
-    var OBS_COUNT = 0;
 
     function main() {
       canvas = document.getElementById("camera");
       canvas.width = SIZE;
       canvas.height = SIZE;
+      ctx = canvas.getContext("2d", { willReadFrequently: true });
 
       const constraints = {
         video: true,
       };
+
       const permission = navigator.mediaDevices
         .getUserMedia(constraints)
         .then((stream) => {
@@ -41,8 +43,6 @@
     }
 
     function updateImage(video) {
-      const ctx = canvas.getContext("2d", { willReadFrequently: true });
-
       const minSize = Math.min(video.videoWidth, video.videoHeight);
       const startX = (video.videoWidth - minSize) / 2;
       const startY = (video.videoHeight - minSize) / 2;
@@ -50,21 +50,37 @@
       ctx.drawImage(video, startX, startY, minSize, minSize, 0, 0, SIZE, SIZE);
 
       const image = ctx.getImageData(0, 0, SIZE, SIZE);
-      const matrix = getPixelMatrix(image.data);
 
-      processMatrix(matrix);
+      processImage(image);
     }
 
-    function getPixelMatrix(dataArray) {
+    function processImage(image) {
+      const matrix = getPixelMatrix(image.data);
+      isolateObject(matrix);
+
+      const blackPixels = countBlackPixels(matrix);
+      const box = getBoundingBox(matrix);
+      const boxProp = getBoxProperty(box);
+      const boxArea = boxProp.width * boxProp.length;
+      const fullness = blackPixels / boxArea;
+
+      OBJECT_PROPS = [boxProp.aspectRatio, fullness];
+      recognize(OBJECT_PROPS);
+
+      updateCanvas(matrix);
+      drawBox(box);
+    }
+
+    function getPixelMatrix(imageData) {
       const matrix = [];
-      for (let i = 1; i <= SIZE; i++) {
+      for (let i = 0; i < SIZE; i++) {
         matrix[i] = [];
-        for (let j = 1; j <= SIZE; j++) {
-          const groupIdx = (i - 1) * SIZE * 4 + (j - 1) * 4;
-          const R = dataArray[groupIdx];
-          const G = dataArray[groupIdx + 1];
-          const B = dataArray[groupIdx + 2];
-          // const A = dataArray[groupIdx + 3];
+        for (let j = 0; j < SIZE; j++) {
+          const groupIdx = (i * SIZE + j) * 4;
+          const R = imageData[groupIdx];
+          const G = imageData[groupIdx + 1];
+          const B = imageData[groupIdx + 2];
+          // const A = imgData[groupIdx + 3];
           matrix[i][j] = (R + G + B) / 3;
         }
       }
@@ -72,68 +88,9 @@
       return matrix;
     }
 
-    function processMatrix(matrix) {
-      isolateObject(matrix);
-      const box = getBoundingBox(matrix);
-      const boxProp = getBoxProperty(box);
-      const blackPixels = countBlackPixels(matrix);
-      const boxArea = boxProp.width * boxProp.length;
-      const fullness = blackPixels / boxArea;
-
-      OBJECT_PROP[1] = boxProp.aspectRatio;
-      OBJECT_PROP[2] = fullness;
-      recognize(OBJECT_PROP);
-
-      updateCanvas(matrix);
-      drawBox(box);
-    }
-
-    function countBlackPixels(matrix) {
-      let count = 0;
-      for (let i = 1; i <= SIZE; i++) {
-        for (let j = 1; j <= SIZE; j++) {
-          if (matrix[i][j] === 0) {
-            count++;
-          }
-        }
-      }
-
-      return count;
-    }
-
-    function recognize(currentProp) {
-      const name = OBS_COUNT === 0 ? "?" : getNearestNeighbor(currentProp).name;
-
-      document.getElementById("output").innerHTML = name;
-    }
-
-    function getNearestNeighbor(currentProp) {
-      let minDist = Number.MAX_VALUE;
-      let nearest = null;
-
-      for (let i = 1; i <= OBS_COUNT; i++) {
-        const dist = distance(currentProp, OBSERVATIONS[i].prop);
-        if (dist < minDist) {
-          minDist = dist;
-          nearest = OBSERVATIONS[i];
-        }
-      }
-
-      return nearest;
-    }
-
-    function distance(p1, p2) {
-      let sqDist = 0;
-      for (let i = 1; i <= DIMENSIONS; i++) {
-        sqDist += (p1[i] - p2[i]) ** 2;
-      }
-
-      return Math.sqrt(sqDist);
-    }
-
     function isolateObject(matrix) {
-      for (let i = 1; i <= SIZE; i++) {
-        for (let j = 1; j <= SIZE; j++) {
+      for (let i = 0; i < SIZE; i++) {
+        for (let j = 0; j < SIZE; j++) {
           if (matrix[i][j] < THRESHOLD) {
             matrix[i][j] = 0;
           } else {
@@ -143,28 +100,29 @@
       }
     }
 
-    function drawBox(box) {
-      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    function countBlackPixels(matrix) {
+      let count = 0;
+      for (let i = 0; i < SIZE; i++) {
+        for (let j = 0; j < SIZE; j++) {
+          if (matrix[i][j] === 0) {
+            count++;
+          }
+        }
+      }
 
-      ctx.beginPath();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = "pink";
-      const dx = box.xMax - box.xMin;
-      const dy = box.yMax - box.yMin;
-      ctx.rect(box.xMin, box.yMin, dx, dy);
-      ctx.stroke();
+      return count;
     }
 
     function getBoundingBox(matrix) {
       const box = {
-        xMin: SIZE + 1,
+        xMin: SIZE,
         xMax: 0,
-        yMin: SIZE + 1,
+        yMin: SIZE,
         yMax: 0,
       };
 
-      for (let y = 1; y <= SIZE; y++) {
-        for (let x = 1; x <= SIZE; x++) {
+      for (let y = 0; y < SIZE; y++) {
+        for (let x = 0; x < SIZE; x++) {
           if (matrix[y][x] === 0) {
             box.yMin = Math.min(box.yMin, y);
             box.yMax = Math.max(box.yMax, y);
@@ -195,13 +153,22 @@
       return prop;
     }
 
+    function drawBox(box) {
+      ctx.beginPath();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "pink";
+      const dx = box.xMax - box.xMin;
+      const dy = box.yMax - box.yMin;
+      ctx.rect(box.xMin, box.yMin, dx, dy);
+      ctx.stroke();
+    }
+
     function updateCanvas(matrix) {
-      const ctx = canvas.getContext("2d", { willReadFrequently: true });
       const image = ctx.getImageData(0, 0, SIZE, SIZE);
 
-      for (let i = 1; i <= SIZE; i++) {
-        for (let j = 1; j <= SIZE; j++) {
-          const groupIdx = ((i - 1) * SIZE + (j - 1)) * 4;
+      for (let i = 0; i < SIZE; i++) {
+        for (let j = 0; j < SIZE; j++) {
+          const groupIdx = (i * SIZE + j) * 4;
           const val = matrix[i][j];
           image.data[groupIdx] = val;
           image.data[groupIdx + 1] = val;
@@ -212,20 +179,47 @@
       ctx.putImageData(image, 0, 0);
     }
 
+    function recognize(currentProps) {
+      const name =
+        OBSERVATIONS.length === 0 ? "?" : getNearestNeighbor(currentProps).name;
+
+      document.getElementById("output").innerHTML = name;
+    }
+
+    function getNearestNeighbor(currentProps) {
+      let minDist = Number.MAX_VALUE;
+      let nearest = null;
+
+      for (let i = 0; i < OBSERVATIONS.length; i++) {
+        const dist = distance(currentProps, OBSERVATIONS[i].props);
+        if (dist < minDist) {
+          minDist = dist;
+          nearest = OBSERVATIONS[i];
+        }
+      }
+
+      return nearest;
+    }
+
+    function distance(p1, p2) {
+      let sqDist = 0;
+      for (let i = 0; i < DIMENSION; i++) {
+        sqDist += (p1[i] - p2[i]) ** 2;
+      }
+
+      return Math.sqrt(sqDist);
+    }
+
     function learn() {
-      const name = document.getElementById("objectName").value;
+      const name = document.getElementById("name-input").value;
       if (!name) {
         alert("Please enter the object name");
         return;
       }
 
-      OBS_COUNT++;
-      OBSERVATIONS[OBS_COUNT] = {
-        name: name,
-        prop: OBJECT_PROP,
-      };
+      OBSERVATIONS.push({ name: name, props: OBJECT_PROPS });
 
-      document.getElementById("objectName").value = "";
+      document.getElementById("name-input").value = "";
     }
 
     function checkKeyPress(event) {
@@ -241,7 +235,7 @@
     <div id="output">?</div>
     <br />
     <input
-      id="objectName"
+      id="name-input"
       onkeyup="checkKeyPress(event)"
       placeholder="what's this?"
     />
