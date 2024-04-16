@@ -11,7 +11,11 @@
 
     var SIZE = 300;
     var INTERVAL = 42;
-    var THRESHOLD = 130;
+    var THRESHOLD = 110;
+
+    var OBJECT_PROP = null;
+    var OBSERVATIONS = [];
+    var OBS_COUNT = 0;
 
     function main() {
       canvas = document.getElementById("camera");
@@ -36,7 +40,7 @@
     }
 
     function updateImage(video) {
-      const ctx = canvas.getContext("2d");
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
       const minSize = Math.min(video.videoWidth, video.videoHeight);
       const startX = (video.videoWidth - minSize) / 2;
@@ -70,7 +74,13 @@
     function processMatrix(matrix) {
       isolateObject(matrix);
       const box = getBoundingBox(matrix);
-      console.log(box)
+      const boxProp = getBoxProperty(box);
+
+      OBJECT_PROP = boxProp.aspectRatio;
+      document.getElementById(
+        "output"
+      ).innerHTML = `Aspect ratio: ${OBJECT_PROP.toFixed(2)}`;
+
       updateCanvas(matrix);
       drawBox(box);
     }
@@ -88,11 +98,11 @@
     }
 
     function drawBox(box) {
-      const ctx = canvas.getContext("2d");
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
       ctx.beginPath();
       ctx.lineWidth = 2;
-      ctx.strokeStyle = 'pink';
+      ctx.strokeStyle = "pink";
       const dx = box.xMax - box.xMin;
       const dy = box.yMax - box.yMin;
       ctx.rect(box.xMin, box.yMin, dx, dy);
@@ -121,8 +131,26 @@
       return box;
     }
 
+    function getBoxProperty(box) {
+      const prop = {
+        length: 0,
+        width: 0,
+        aspectRatio: 0,
+      };
+
+      const dx = box.xMax - box.xMin + 1;
+      const dy = box.yMax - box.yMin + 1;
+
+      // 길이가 긴 쪽이 length, 짧은쪽이 width
+      prop.length = Math.max(dx, dy);
+      prop.width = Math.min(dx, dy);
+      prop.aspectRatio = prop.width / prop.length;
+
+      return prop;
+    }
+
     function updateCanvas(matrix) {
-      const ctx = canvas.getContext("2d");
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
       const image = ctx.getImageData(0, 0, SIZE, SIZE);
 
       for (let i = 1; i <= SIZE; i++) {
@@ -137,6 +165,28 @@
 
       ctx.putImageData(image, 0, 0);
     }
+
+    function learn() {
+      const name = document.getElementById("objectName").value;
+      if (!name) {
+        alert("Please enter the object name");
+        return;
+      }
+
+      OBS_COUNT++;
+      OBSERVATIONS[OBS_COUNT] = {
+        name: name,
+        prop: OBJECT_PROP,
+      };
+
+      document.getElementById("objectName").value = "";
+    }
+
+    function checkKeyPress(event) {
+      if (event.key == "Enter") {
+        learn();
+      }
+    }
   </script>
 </head>
 <body onload="main()">
@@ -144,7 +194,11 @@
     <canvas id="camera"></canvas>
     <div id="output">?</div>
     <br />
-    <input id="objectName" placeholder="what's this?" />
-    <button class="button">Learn</button>
+    <input
+      id="objectName"
+      onkeyup="checkKeyPress(event)"
+      placeholder="what's this?"
+    />
+    <button class="button" onclick="learn()">Learn</button>
   </main>
 </body>
