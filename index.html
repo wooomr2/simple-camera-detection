@@ -7,14 +7,16 @@
     }
   </style>
   <script>
+    var canvas = null;
+
     var SIZE = 300;
-    var CANVAS = null;
     var INTERVAL = 42;
+    var THRESHOLD = 130;
 
     function main() {
-      CANVAS = document.getElementById("camera");
-      CANVAS.width = SIZE;
-      CANVAS.height = SIZE;
+      canvas = document.getElementById("camera");
+      canvas.width = SIZE;
+      canvas.height = SIZE;
 
       const constraints = {
         video: true,
@@ -34,8 +36,69 @@
     }
 
     function updateImage(video) {
-      const context = CANVAS.getContext("2d");
-      context.drawImage(video, 0, 0, SIZE, SIZE);
+      const ctx = canvas.getContext("2d");
+
+      const minSize = Math.min(video.videoWidth, video.videoHeight);
+      const startX = (video.videoWidth - minSize) / 2;
+      const startY = (video.videoHeight - minSize) / 2;
+
+      ctx.drawImage(video, startX, startY, minSize, minSize, 0, 0, SIZE, SIZE);
+
+      const image = ctx.getImageData(0, 0, SIZE, SIZE);
+      const matrix = getPixelMatrix(image.data);
+
+      processMatrix(matrix);
+    }
+
+    function getPixelMatrix(dataArray) {
+      const matrix = [];
+      for (let i = 1; i <= SIZE; i++) {
+        matrix[i] = [];
+        for (let j = 1; j <= SIZE; j++) {
+          const groupIdx = (i - 1) * SIZE * 4 + (j - 1) * 4;
+          const R = dataArray[groupIdx];
+          const G = dataArray[groupIdx + 1];
+          const B = dataArray[groupIdx + 2];
+          // const A = dataArray[groupIdx + 3];
+          matrix[i][j] = (R + G + B) / 3;
+        }
+      }
+
+      return matrix;
+    }
+
+    function processMatrix(matrix) {
+      isolateObject(matrix);
+      updateCanvas(matrix);
+    }
+
+    function isolateObject(matrix) {
+      for (let i = 1; i <= SIZE; i++) {
+        for (let j = 1; j <= SIZE; j++) {
+          if (matrix[i][j] < THRESHOLD) {
+            matrix[i][j] = 0;
+          } else {
+            matrix[i][j] = 255;
+          }
+        }
+      }
+    }
+
+    function updateCanvas(matrix) {
+      const ctx = canvas.getContext("2d");
+      const image = ctx.getImageData(0, 0, SIZE, SIZE);
+
+      for (let i = 1; i <= SIZE; i++) {
+        for (let j = 1; j <= SIZE; j++) {
+          const groupIdx = ((i - 1) * SIZE + (j - 1)) * 4;
+          const val = matrix[i][j];
+          image.data[groupIdx] = val;
+          image.data[groupIdx + 1] = val;
+          image.data[groupIdx + 2] = val;
+        }
+      }
+
+      ctx.putImageData(image, 0, 0);
     }
   </script>
 </head>
