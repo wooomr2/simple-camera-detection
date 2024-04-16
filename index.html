@@ -69,7 +69,10 @@
 
     function processMatrix(matrix) {
       isolateObject(matrix);
+      const box = getBoundingBox(matrix);
+      console.log(box)
       updateCanvas(matrix);
+      drawBox(box);
     }
 
     function isolateObject(matrix) {
@@ -82,6 +85,40 @@
           }
         }
       }
+    }
+
+    function drawBox(box) {
+      const ctx = canvas.getContext("2d");
+
+      ctx.beginPath();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'pink';
+      const dx = box.xMax - box.xMin;
+      const dy = box.yMax - box.yMin;
+      ctx.rect(box.xMin, box.yMin, dx, dy);
+      ctx.stroke();
+    }
+
+    function getBoundingBox(matrix) {
+      const box = {
+        xMin: SIZE + 1,
+        xMax: 0,
+        yMin: SIZE + 1,
+        yMax: 0,
+      };
+
+      for (let y = 1; y <= SIZE; y++) {
+        for (let x = 1; x <= SIZE; x++) {
+          if (matrix[y][x] === 0) {
+            box.yMin = Math.min(box.yMin, y);
+            box.yMax = Math.max(box.yMax, y);
+            box.xMin = Math.min(box.xMin, x);
+            box.xMax = Math.max(box.xMax, x);
+          }
+        }
+      }
+
+      return box;
     }
 
     function updateCanvas(matrix) {
